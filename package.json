@@ -11,12 +11,13 @@
   "dependencies": {
     "next": "13.4.19",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "use-debounce": "^10.0.6"
   },
   "devDependencies": {
-    "typescript": "5.2.2",
     "@types/node": "20.5.9",
     "@types/react": "18.2.19",
-    "@types/react-dom": "18.2.7"
+    "@types/react-dom": "18.2.7",
+    "typescript": "5.2.2"
   }
 }
