@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { WeatherData } from "../../types/weather";
 import { useDebouncedCallback } from "use-debounce";
 
@@ -9,7 +9,7 @@ export default function WeatherDashboard() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const searchRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Implement debounce city search, fetch weather, handle only latest, and log search (background)
 
@@ -27,19 +27,50 @@ export default function WeatherDashboard() {
     }
   }
 
-  //hnadle weather api call
+  //handle weather api call
   const fetchWeather = async(city: string) => {
-    setLoading(true);
-    const apiKey = process.env.NEXT_PUBLIC_WEATHER_API_KEY;
-    const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if(response.ok){
-      setWeather(data?.weather[0]);
-    }else{
-      setError(data.message);
+    // Cancel the previous request if it exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
-    setLoading(false);
+    
+    // Create a new AbortController for this request
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_WEATHER_API_KEY;
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}`;
+      const response = await fetch(url, { 
+        signal: controller.signal 
+      });
+      
+      // Check if the request was aborted
+      if (controller.signal.aborted) {
+        return;
+      }
+      
+      const data = await response.json();
+      if(response.ok){
+        setWeather(data?.weather[0]);
+      } else {
+        setError(data.message);
+      }
+    } catch (error) {
+      // Ignore abort errors
+      if (error instanceof Error && error.name !== 'AbortError') {
+        setError('Failed to fetch weather data');
+        console.error(error);
+      }
+    } finally {
+      // Only stop loading if this wasn't aborted
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
+    }
   }
 
   //handle debounce search
@@ -54,13 +85,20 @@ export default function WeatherDashboard() {
     debounceSearch(e.target.value);
   };
 
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   return (
     <main className="max-w-xl mx-auto py-10 px-2">
       {/* Input, loading/error states, weather card go here */}
       <h3>Weather App</h3>
       <input type="text" value={city} onChange={handleCityChange} />
       {loading && <p>Loading...</p>}
-      {error && <p>{error}</p>}
       {weather && (
         <div>
           <p>{weather.description}</p>
